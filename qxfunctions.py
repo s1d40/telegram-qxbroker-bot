@@ -1,140 +1,145 @@
-import sys
-import time
-import datetime
-import shutup
-import random
+import os
 import asyncio
-import collections
-import schedule
-from termcolor import colored
-import numpy as np
 import datetime
+from termcolor import colored
 from quotexpy import Quotex
 from quotexpy.utils import asset_parse
 from quotexpy.utils.account_type import AccountType
-from quotexpy.utils.operation_type import OperationType
-from quotexpy.utils.duration_time import DurationTime
-from quotexpy.ws.objects.timesync import TimeSync
 from my_connection import MyConnection
+import logging
 
+# Setup basic configuration for logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-#if error, access https://stackoverflow.com/questions/73193119/python-filenotfounderror-winerror-2-the-system-cannot-find-the-file-specifie
-
-shutup.please()
-
-asset_current = "AUDCAD"
-
-
-def __x__(y):
-    z = asyncio.get_event_loop().run_until_complete(y)
-    return z
-
-
-client = Quotex(
-    email=YOUR_QUOTEX_EMAIL,
-    password=YOUR_QUOTEX_PASSWORD,
-)
-
+# Global client setup
+EMAIL = YOUR_QUOTEX_EMAIL
+PASSWORD = YOUR_QUOTEX_PASSWORD
+client = Quotex(email=EMAIL, password=PASSWORD)
 client.debug_ws_enable = False
+# Function to delete session file
+def delete_session_file():
+    session_file_path = YOUR_SESSION_DOT_JSON_FILE_PATH
+    try:
+        if os.path.exists(session_file_path):
+            os.remove(session_file_path)
+            logging.info("Session file deleted successfully.")
+            print(colored("Session file deleted successfully.", "green"))
+        else:
+            logging.info("Session file does not exist.")
+            print(colored("Session file does not exist.", "yellow"))
+    except Exception as e:
+        logging.error(f"Error occurred while trying to delete the session file: {e}")
+        print(colored(f"Error occurred while trying to delete the session file: {e}", "red"))
 
-
-def check_asset(asset):
+# Function to check asset availability
+async def check_asset(asset):
+    logging.info(f"Checking asset availability for {asset}")
+    print(colored(f"Checking asset availability for {asset}", "blue"))
     asset_query = asset_parse(asset)
     asset_open = client.check_asset_open(asset_query)
-    if not asset_open[2]:
-        print(colored("[WARN]: ", "yellow"), "Asset is closed.")
+    if not asset_open:
+        logging.warning("Asset is closed. Trying OTC Asset.")
+        print(colored("Asset is closed. Trying OTC Asset.", "yellow"))
         asset = f"{asset}_otc"
-        print(colored("[WARN]: ", "yellow"), "Try OTC Asset -> " + asset)
+        asset_query = asset_parse(asset)
+        asset_open = client.check_asset_open(asset_query)
+    if not asset_open[2]:
+        logging.warning("Asset is closed. Trying OTC Asset.")
+        print(colored("Asset is closed. Trying OTC Asset again.", "yellow"))
+        asset = f"{asset}_otc"
         asset_query = asset_parse(asset)
         asset_open = client.check_asset_open(asset_query)
     return asset, asset_open
 
-
+# Function to fetch balance
 async def get_balance():
     prepare_connection = MyConnection(client)
-    check_connect, message = await prepare_connection.connect()
-    if check_connect:
-        client.change_account(AccountType.PRACTICE)  # "REAL"
-        print(colored("[INFO]: ", "blue"), "Balance: ", await client.get_balance())
-        print(colored("[INFO]: ", "blue"), "Exiting...")
-    prepare_connection.close()
-
-
-async def wait_until_time(target_time):
-    """ Waits until the specified target_time """
-    now = datetime.datetime.now()
-    wait_seconds = (target_time - now).total_seconds()
-    if wait_seconds > 0:
-        print(f"Waiting for {wait_seconds} seconds to continue operation.")
-        await asyncio.sleep(wait_seconds)
-
-async def trade_and_check_win(duration, _action, time, pair):
-    prepare_connection = MyConnection(client)
-    check_connect, message = await prepare_connection.connect()
-    if check_connect:
-        client.change_account(AccountType.PRACTICE) #REAL
-        entry_time = datetime.datetime.strptime(time, '%H:%M')
-        entry_time = datetime.datetime.combine(datetime.datetime.today(), entry_time.time())  # ensure it's set for today
-        now = datetime.datetime.now()
-
-        # Check if the entry time has already passed
-        if entry_time <= now:
-            print(colored("[WARN]: ", "red"), f"Specified time {entry_time.strftime('%H:%M')} has already passed. Exiting function.")
-            return  # Exit the function since the time has passed
-
-        print(colored("[INFO]: ", "blue"), "Balance: ", await client.get_balance())
-        amount = 50
-        asset, asset_open = check_asset(pair)
-
-        # Wait until the exact target time
-        await wait_until_time(entry_time)
-
-        if asset_open[2]:
-            print(colored("[INFO]: ", "blue"), "Asset is open.")
-            status, trade_info = await client.trade(_action, amount, asset, duration)
-            print(status, trade_info)
-            if status:
-                print(colored("[INFO]: ", "blue"), "Waiting for result...")
-                if await client.check_win(asset, trade_info):
-                    print(colored("[INFO]: ", "green"), f"Win -> Profit: {client.get_profit()}")
-                else:
-                    print(colored("[INFO]: ", "light_red"), f"Loss -> Loss: {client.get_profit()}")
-            else:
-                print(colored("[WARN]: ", "light_red"), "Operation not realized.")
+    if await prepare_connection.connect():
+        client.change_account(AccountType.PRACTICE)  # Switch to REAL if necessary
+        balance = await client.get_balance()
+        if balance is not None:
+            logging.info(f"Current Balance: {balance}")
+            print(colored(f"Current Balance: {balance}", "green"))
         else:
-            print(colored("[WARN]: ", "light_red"), "Asset is closed.")
-        print(colored("[INFO]: ", "blue"), "Balance: ", await client.get_balance())
-
+            logging.warning("Failed to fetch balance.")
+            print(colored("Failed to fetch balance.", "yellow"))
+        prepare_connection.close()
+        return balance
+    else:
+        logging.error("Failed to connect to the server.")
+        print(colored("Failed to connect to the server.", "red"))
     prepare_connection.close()
-    print(colored("[INFO]: ", "blue"), "Exiting...")
+    return None
 
+async def wait_until_time_with_reconnect(entry_time):
+    """
+    Waits until the specified entry_time, checking and maintaining the connection.
+    """
+    while True:
+        now = datetime.datetime.now()
+        if now >= entry_time:
+            logging.info("Reached the specified entry time.")
+            print(colored("Reached the specified entry time.", "green"))
+            break
+        if not client.check_connect():
+            logging.info("Connection lost. Attempting to reconnect...")
+            print(colored("Connection lost. Attempting to reconnect...", "yellow"))
+            if not await client.connect():
+                logging.error("Reconnection failed. Aborting operation.")
+                print(colored("Reconnection failed. Aborting operation.", "red"))
+                return False
+        else:
+            logging.info("Connection is active. Waiting...")
+            print(colored("Connection is active. Waiting...", "blue"))
+        await asyncio.sleep(10)  # check every 10 seconds
+    return True
 
+async def trade_and_check_win(duration, action_type, time, pair):
+    prepare_connection = MyConnection(client)
+    if await prepare_connection.connect():
+        client.change_account(AccountType.PRACTICE)  # or account_type.REAL
+        entry_time = datetime.datetime.strptime(time, '%H:%M')
+        entry_time = datetime.datetime.combine(datetime.datetime.today(), entry_time.time())
+        if datetime.datetime.now() >= entry_time:
+            logging.warning(f"Specified time {entry_time.strftime('%H:%M')} has already passed. Exiting function.")
+            print(colored(f"Specified time {entry_time.strftime('%H:%M')} has already passed. Exiting function.", "red"))
+            return
+         # Ensure that we're connected and wait until the specified time
+        if not await wait_until_time_with_reconnect(entry_time):
+            prepare_connection.close()
+            return
+        logging.info("Checking asset status...")
+        print(colored("Checking asset status...", "blue"))
+        asset, asset_open = await check_asset(pair)
+        if asset_open and asset_open[2]:
+            #verify if we are connected right before trading.
+            if client.check_connect():
+                status, trade_info = await client.trade(action_type, 50, asset, duration)
+                if status:
+                    print(colored("Entry Sucessful, waiting for result...", "yellow"))
+                    win = await client.check_win(asset, trade_info)
+                    if win:
+                        logging.info(f"Win -> Profit: {client.get_profit()}")
+                        print(colored(f"Win -> Profit: {client.get_profit()}", "green"))
+                    else:
+                        logging.info(f"Loss -> Loss: {client.get_profit()}")
+                        print(colored(f"Loss -> Loss: {client.get_profit()}", "red"))
+                else:
+                    logging.warning("Operation not realized.")
+                    print(colored("Operation not realized.", "red"))
+            else:
+                logging.warning("Connection Lost, Operation not realized.")
+                print(colored("Connection Lost, Operation not realized.", "red"))
+        else:
+            logging.warning("Asset is closed or not found.")
+            print(colored("Asset is closed or not found.", "red"))
+        prepare_connection.close()
+    else:
+        logging.error("Failed to connect for trading.")
+        print(colored("Failed to connect for trading.", "red"))
+    prepare_connection.close()
+    #delete_session_file()
 
-async def main(signal):
-    # await get_balance()
-    # await get_signal_data()
-    # await get_payment()
-    # await get_payments_payout_more_than()
-    # await get_candle_v2()
-    # await assets_open()
-    if signal['expiration'] == '1 min':
-        expiration = DurationTime.ONE_MINUTE
-    elif signal['expiration'] == '5 min':
-        expiration = DurationTime.FIVE_MINUTES
-    if signal['entry_type'] == 'CALL':
-        entry_type = OperationType.CALL_GREEN
-    elif signal['entry_type'] == 'PUT':
-        entry_type = OperationType.PUT_RED
-    
-    await trade_and_check_win(duration=expiration, _action=entry_type, time=signal["time"], pair=signal["pair"])
-    # await balance_refill()
-    
+# Optionally, include cleanup or logging out logic if needed
 
-def run_main():
-    try:
-        __x__(main())
-    except KeyboardInterrupt:
-        print("Aborted!")
-        sys.exit(0)
-
-
+# Removed the standalone execution block

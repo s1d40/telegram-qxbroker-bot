@@ -3,7 +3,7 @@ import socket
 import json  # Import json for serialization
 from telethon import TelegramClient, events
 
-api_id = YOUR_API_KEY
+api_id = YOUR_API_ID # GET THIS FROM TELEGRAM API WEBSITE
 api_hash = YOUR_API_HASH
 phone = YOUR_PHONE_NUMBER
 
@@ -22,7 +22,7 @@ async def start_telegram_client():
         except SessionPasswordNeededError:
             await client.sign_in(password=input('Password: '))
 
-@client.on(events.NewMessage(chats=1775614507)) # magicos vip 1775614507 #test channel 7033220336
+@client.on(events.NewMessage(chats=YOUR_CHAT_ENTITY_ID)) # WILL PROVIDE INSTRUCTIONS ON HOW TO GET THIS IN THE FUTURE
 async def handle_new_message(event):
     message_text = event.message.message
     if 'CALL' in message_text or 'PUT' in message_text:
@@ -41,7 +41,7 @@ def parse_signal(message):
             time_part = parts[1].strip()
             section = parts[0].split("\n")
             expiration = section[0].strip()
-            pair = section[1].strip().replace('/', '')  # Remove '/' from the currency pair
+            pair = section[1].strip() #.replace('/', '')  # Remove '/' from the currency pair
             if "1 minuto" in expiration:
                 expiration = "1 min"
             elif "5 minutos" in expiration:

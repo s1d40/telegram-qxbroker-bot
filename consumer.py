@@ -2,9 +2,12 @@ import socket
 import json
 from datetime import datetime
 import qxfunctions
+from termcolor import colored
 import asyncio
+from quotexpy.utils.operation_type import OperationType
+from quotexpy.utils.duration_time import DurationTime
 
-def preprocess_and_validate_signal(signal):
+async def preprocess_and_validate_signal(signal):
     """
     Preprocesses the signal by removing '/' from the pair and validates the required fields.
     Directly passes hours and minutes from the signal without calculating wait seconds.
@@ -38,13 +41,13 @@ def preprocess_and_validate_signal(signal):
         print(f"Error during signal validation: {e}")
         return False, None
 
-def main():
+async def main():
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as consumer_socket:
         consumer_socket.bind(('localhost', 9999))
         consumer_socket.listen(1)
-        print("Waiting for connection on port 9999...")
+        print(colored("Waiting for connection on port 9999...", "cyan"))
         connection, client_address = consumer_socket.accept()
-        print(f"Connected to {client_address}")
+        print(colored(f"Connected to {client_address}", "green"))
 
         try:
             buffer = ""
@@ -55,28 +58,36 @@ def main():
                 buffer += data.decode('utf-8')
 
                 # Print the buffer before attempting to parse it as JSON
-                print("Buffer before JSON parsing:", buffer)
+                print(colored("Buffer before JSON parsing: " + buffer, "yellow"))
 
                 try:
                     signal = json.loads(buffer)
-                    print("Received signal:", signal)
+                    print(colored("Received signal: " + json.dumps(signal, indent=2), "magenta"))
                     buffer = ""  # Reset buffer after successful parse
 
-                    valid, processed_signal = preprocess_and_validate_signal(signal)
+                    valid, processed_signal = await preprocess_and_validate_signal(signal)
                     if valid:
-                        print("Valid signal received. Processing...")
-                        print("Processed Signal:", processed_signal)
-                        # Here you could add your logic to act on the validated signal
-                        asyncio.get_event_loop().run_until_complete(qxfunctions.main(processed_signal))
+                        action_color = "green" if signal['entry_type'] == 'CALL' else "red"
+                        print(colored("Valid signal received. Processing...", "blue"))
+                        print(colored(f"Processed Signal: {processed_signal}", action_color))
+                        # Call trade_and_check_win from qxfunctions
+                        await qxfunctions.trade_and_check_win(
+                            duration=DurationTime.FIVE_MINUTES if signal['expiration'] == '5 min' else DurationTime.ONE_MINUTE,
+                            action_type=OperationType.CALL_GREEN if signal['entry_type'] == 'CALL' else OperationType.PUT_RED,
+                            time=signal["time"],
+                            pair=signal["pair"]
+                        )
+                        print(colored("Consumer [INFO]: Sleeping for 5 seconds...", "blue"))
+                        await asyncio.sleep(5)
                     else:
-                        print("Invalid signal received. Ignoring...")
+                        print(colored("Invalid signal received. Ignoring...", "red"))
 
                 except json.JSONDecodeError:
-                    print("Failed to decode JSON, waiting for more data...")
+                    print(colored("Failed to decode JSON, waiting for more data...", "red"))
                     continue  # Continue receiving data if JSON is incomplete
 
         finally:
             connection.close()
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
