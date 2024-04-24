@@ -1,11 +1,9 @@
 import socket
 import json
-from datetime import datetime
-import qxfunctions
-from termcolor import colored
 import asyncio
-from quotexpy.utils.operation_type import OperationType
-from quotexpy.utils.duration_time import DurationTime
+from trade import trade
+from termcolor import colored
+from wait_until_time import wait_until_time
 
 async def preprocess_and_validate_signal(signal):
     """
@@ -71,19 +69,48 @@ async def main():
                         print(colored("Valid signal received. Processing...", "blue"))
                         print(colored(f"Processed Signal: {processed_signal}", action_color))
                         # Call trade_and_check_win from qxfunctions
-                        await qxfunctions.trade_and_check_win(
-                            duration=DurationTime.FIVE_MINUTES if signal['expiration'] == '5 min' else DurationTime.ONE_MINUTE,
-                            action_type=OperationType.CALL_GREEN if signal['entry_type'] == 'CALL' else OperationType.PUT_RED,
-                            time=signal["time"],
-                            pair=signal["pair"]
-                        )
+                        _duration = 300 if signal['expiration'] == '5 min' else 60
+                        _action = signal["entry_type"].lower()
+                        _amount = 50
+                        _asset = signal["pair"]
+                        
+                        
+                        
+                        on_time = await wait_until_time(signal['time'])
+                        
+                        
+                        if on_time:
+                            win = await trade(
+                                duration=_duration,
+                                action=_action,
+                                amount = _amount,
+                                asset=_asset
+                            )
+                            if not win:
+                                print(colored("Entering First Martingale"), "yellow")
+                                win = await trade(
+                                    duration=_duration,
+                                    action=_action,
+                                    amount = _amount*2,
+                                    asset=_asset
+                                )
+                                if not win:
+                                    print(colored("Entering Second Martingale"), "yellow")
+                                    win = await trade(
+                                        duration=_duration,
+                                        action=_action,
+                                        amount = _amount*4,
+                                        asset=_asset
+                                )
                         print(colored("Consumer [INFO]: Sleeping for 5 seconds...", "blue"))
                         await asyncio.sleep(5)
                     else:
                         print(colored("Invalid signal received. Ignoring...", "red"))
+                        buffer = ''
 
                 except json.JSONDecodeError:
                     print(colored("Failed to decode JSON, waiting for more data...", "red"))
+                    buffer = ''
                     continue  # Continue receiving data if JSON is incomplete
 
         finally:

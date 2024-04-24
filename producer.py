@@ -3,9 +3,9 @@ import socket
 import json  # Import json for serialization
 from telethon import TelegramClient, events
 
-api_id = YOUR_API_ID # GET THIS FROM TELEGRAM API WEBSITE
-api_hash = YOUR_API_HASH
-phone = YOUR_PHONE_NUMBER
+api_id = "20439569"
+api_hash = "53182016b1f48dc6a237ab6a761dfc2f"
+phone = "+5513996179530"
 
 client = TelegramClient('session_name', api_id, api_hash)
 
@@ -22,7 +22,7 @@ async def start_telegram_client():
         except SessionPasswordNeededError:
             await client.sign_in(password=input('Password: '))
 
-@client.on(events.NewMessage(chats=YOUR_CHAT_ENTITY_ID)) # WILL PROVIDE INSTRUCTIONS ON HOW TO GET THIS IN THE FUTURE
+@client.on(events.NewMessage(chats=[-1001775614507, 1775614507, 7033220336])) # magicos vip 1775614507 #test channel 7033220336
 async def handle_new_message(event):
     message_text = event.message.message
     if 'CALL' in message_text or 'PUT' in message_text:
