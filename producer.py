@@ -3,9 +3,9 @@ import socket
 import json  # Import json for serialization
 from telethon import TelegramClient, events
 
-api_id = "20439569"
-api_hash = "53182016b1f48dc6a237ab6a761dfc2f"
-phone = "+5513996179530"
+api_id = "YOUR_API_ID"
+api_hash = "YOUR_API_HASH"
+phone = "YOUR_PHONE_NUMBER"
 
 client = TelegramClient('session_name', api_id, api_hash)
 
