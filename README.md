@@ -1,9 +1,5 @@
 ## Help Me Continue Working on this project
 
-- **ETH: 0x594856Bc399E799edF4Ce57153a8305698156221
-- **PIX: 75be39bb-e9c1-4335-80f7-375df4ca3ebf
-- **BTC: bc1qk7zxn9mfjzjf70sufjz0zjnkfqammlk3duv378
-
 # Telegram-Qxbroker-Bot
 
 This project consists of two main Python scripts, `producer.py` and `consumer.py`, designed to monitor Telegram chats for binary options signals, validate these signals, and execute trades on a broker platform based on the signals received.
