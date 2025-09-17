@@ -4,7 +4,7 @@
 
 This project consists of two main Python scripts, `producer.py` and `consumer.py`, designed to monitor Telegram chats for binary options signals, validate these signals, and execute trades on a broker platform based on the signals received.
 
-## This project uses pyquotex, here is a thanks to the creators, you can find it here, :
+## This project uses pyquotex:
 --  https://github.com/cleitonleonel/pyquotex 
 
 ## Description
