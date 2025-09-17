@@ -6,7 +6,6 @@ This project consists of two main Python scripts, `producer.py` and `consumer.py
 
 ## This project uses pyquotex, here is a thanks to the creators, you can find it here, :
 --  https://github.com/cleitonleonel/pyquotex 
-## a special thanks to the creators of this api
 
 ## Description
 
